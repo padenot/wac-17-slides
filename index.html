@@ -21,12 +21,14 @@ iframe {
 
 @font-face{
     font-family: 'Fira Code';
-   src: url('FiraCode-Regular.woff2') format('woff2'),
+    src: url('FiraCode-Regular.woff2') format('woff2'),
     font-weight: 400;
     font-style: normal;
 }
 
-.remark-code, .remark-inline-code { font-family: 'Fira Code'; }
+.remark-code, .remark-inline-code {
+  font-family: 'Fira Code';
+}
 
 a, a:visited {
   color: black;
@@ -64,7 +66,7 @@ dd {
 
   Paul Adenot
 
-  <span class="logo">mozilla</span>
+  <span class="big logo">mozilla</span>
 
   Web Audio Conference 2017
 
@@ -74,7 +76,9 @@ dd {
 
   # Agenda
 
-  XXX TODO
+  ## What's new since WAC'16?
+  ## Where are we in the standardization process?
+  ## What's coming up?
 
   ---
 
@@ -148,6 +152,16 @@ dd {
 
   ---
 
+  # Breakdown
+
+  ## New features
+
+  ## Breaking changes
+
+  ## Retro-specification :-(
+
+  ---
+
   # destination has an output
 
   ```js
@@ -169,17 +183,23 @@ dd {
 
   # Biquad Filter formula change
 
-  - <https://github.com/GoogleChrome/web-audio-samples/wiki/Detection-of-lowpass-BiquadFilter-implementation>
-
-  - <http://rtoy.github.io/webaudio-hacks/more/biquad/biquad-lowpass-q.html?usedB=true>
-
-  - <https://github.com/WebAudio/web-audio-api/issues/771>
+  <dl>
+    <dt>Rationale</dt>
+    <dd><a
+      href="https://github.com/WebAudio/web-audio-api/issues/771">https://github.com/WebAudio/web-audio-api/issues/771</a></dd>
+    <dt>Detection of old vs. new filters</dt>
+    <dd><a
+      href="https://github.com/GoogleChrome/web-audio-samples/wiki/Detection-of-lowpass-BiquadFilter-implementation">https://github.com/GoogleChrome/web-audio-samples/wiki/Detection-of-lowpass-BiquadFilter-implementation</a></dd>
+    <dt>Test page</dt>
+    <dd><a
+      href="http://rtoy.github.io/webaudio-hacks/more/biquad/biquad-lowpass-q.html?usedB=true">http://rtoy.github.io/webaudio-hacks/more/biquad/biquad-lowpass-q.html?usedB=true</a></dd>
+  </dl>
 
   ---
 
   # AudioParam
 
-  - Nominal range clamping
+  - Nominal ranges
 
   - `value` behaviour changed
 
@@ -203,11 +223,12 @@ dd {
 
   <dl class=bigger>
     <dt><code>AudioContext.baseLatency</code></dt>
-    <dd>latency of the graph processing/sandboxing/etc.</dd>
+    <dd>latency of the graph processing/buffering caused by sandboxing/etc.</dd>
     <dt><code>AudioContext.outputLatency</code></dt>
-    <dd>classical audio latency (callback `=>` ear)</dd>
+    <dd>usual audio output latency (audio callback <code>-></code> ear)</dd>
     <dt><code>AudioContext.getOutputTimestamp()</code></dt>
-    <dd>Correlation between <code>Date.now()</code> &amp; <code>AudioContext.currentTime</code></dd>
+    <dd>Correlation between <code>Date.now()</code> (system clock) &amp;
+    <code>AudioContext.currentTime</code> (audio subsystem clock)</dd>
   </dl>
 
   ---
@@ -215,11 +236,22 @@ dd {
   # Latency hint
 
   ```js
-  new AudioContext({latencyHint: "interactive"});
-  // or "playback", "balanced"
+  new AudioContext({ latencyHint: "interactive" });
+  new AudioContext({ latencyHint: "playback" });
+  new AudioContext({ latencyHint: "balanced" });
+  new AudioContext({ latencyHint: 0.05 /* seconds */ });
   ```
 
-  <span class=big>Trade CPU vs. audio latency</span>
+  <span class=big>Trade CPU/battery usage vs. audio latency</span>
+
+  Authors can determine the actual latency:
+
+  ```js
+  var ac = new AudioContext({latencyHint: "playback"});
+  console.log("Base latency:" + ac.baseLatency);
+  console.log("Audio output  latency:" + ac.outputLatency);
+  console.log("Total latency:" + (ac.baseLatency + ac.outputLatency));
+  ```
 
 
   ---
@@ -228,15 +260,24 @@ dd {
 
   <dl>
     <dt>A bunch of new <code>AudioParam</code>s on the panner:</dt>
-    <dd><code>PannerNodeposition.{{X,Y,Z}, orientation{X,Y,Z}}</code></dd>
+    <dd><code>PannerNodeposition.{position{X,Y,Z}, orientation{X,Y,Z}}</code></dd>
     <dt>... and on the <code>AudioListener</code></dt>
     <dd><code>AudioListener.{position{X,Y,Z},forward{X,Y,Z},up{X,Y,Z}}</code></dd>
   </dl>
 
-  <span class=bigger>
-    `setPosition` and friends still work, but are equivalent to setting the
-    `value` attributes all at once.
-  </span>
+  <p class=bigger>
+  <em>a-rate</em> parameters on <code>"equal-power"</code>
+  <code>PannerNode</code>, <em>k-rate</em> on <code>"HRTF"</code> nodes.
+  </p>
+
+  ```js
+    panner.setPosition(1,2,3);
+
+    panner.positionX.value = 1;
+    panner.positionY.value = 2;
+    panner.positionZ.value = 3;
+  ```
+
 
   ---
 
@@ -258,28 +299,32 @@ dd {
   # currentTime progression
 
   Incremented by a <em>render quantum</em> (128 sample-frames), atomically,
-  without waiting for stable state.
+  without waiting for stable state, at the <em>end</em> of the <em>render
+  quantum</em>.
 
   ---
 
-  # AudioNode / AUdioBuffer etc. Constructors
+  # Real constructors
 
-  ```
+  ```js
     var ac = new AudioContext();
 
     var gain1 = ac.createGain();
     var gain2 = new GainNode(ac);
 
     var buf1 = ac.createBufferSource(2, 128, 44100);
-    var buf2 = new AudioBuffer({length: 128, channels: 2, sampleRate: 44100});
+    var buf2 = new AudioBuffer({ length: 128,
+                                 channels: 2,
+                                 sampleRate: 44100 });
     // Mono by default
-    var buf2 = new AudioBuffer({length: 128, sampleRate: 44100});
+    var buf2 = new AudioBuffer({ length: 128,
+                                 sampleRate: 44100});
 
     var pw = ac.createPeriodicWave([1,2,3], [3,2,1]);
     var pw2 = new PeriodicWave([1,2,3], [3,2,1]);
   ```
 
-  paves the way for subclassing of `AudioNode`s.
+  paves the way for subclassing `AudioNode`s.
 
   ---
 
@@ -309,7 +354,7 @@ dd {
   var ac = new AudioContext();
   var source = new AudioBufferSourceNode();
   var gain = new GainNode();
-  var buffer = 
+  var buffer =
     new AudioBuffer({length: 1, sampleRate: ac.sampleRate});
   buffer.getChannelData(0)[0] = 1.0;
   source.connect(gain);
@@ -401,7 +446,7 @@ dd {
       <li><a
       href=https://webaudio.github.io/web-audio-api/#playback-AudioBufferSourceNode>processing
       algorithm</a> </li>
-    <li>Sample-accurate start and looping</li>
+    <li>Subsample-accurate start and looping</li>
     </li>
     </dd>
     <dt><code>DynamicsCompressorNode</code> processing algorithm</dt>
@@ -436,7 +481,7 @@ dd {
 
   ```js
   var ac = new AudioContext();
-  var wave = new PeriodicWave(real: [0,0], imag: [0,1]);
+  var wave = new PeriodicWave({ real: [0,0], imag: [0,1] });
 
   ```
 
@@ -449,6 +494,70 @@ dd {
   expando or kept around elsewhere.
 
   ---
+
+  # Route to candidate recommendation
+
+  - Raymond Toy is officially editor since April last year
+  - Few big blockers left (big one was `DynamicsCompressorNode`)
+  - W3C Audio Working Group Re-chartered
+  - CR transition documents
+  - `web-platform-test`s are lacking a bit (good test suites in implementations,
+    interoperable)
+  - Spec issues on Github are tagged `v.next`
+
+  ---
+
+  # V.NEXT
+
+  - Audio encoding/decoding consolidation
+  - In memory compressed audio asssets
+  - `SharedArrayBuffer` + `AudioWorklet` + `wasm` = ❤️
+
+  ---
+
+  class: center,middle
+
+  # QUESTIONS ?
+
+  ---
+
+  # Thanks !
+
+  <dl>
+    <dt>
+      Slides
+    </dt>
+    <dd>
+      <a
+        href="https://padenot.github.io/wac-17-slides">https://padenot.github.io/wac-17-slides</a><br>
+      <a
+        href="https://github.com/padenot/wac-17-slides">https://github.com/padenot/wac-17-slides</a>
+    </dd>
+    <dt>
+      Editor's draft of the specification
+    </dt>
+    <dd>
+    <a href="https://webaudio.github.io/web-audio-api">https://webaudio.github.io/web-audio-api</a>
+    </dd>
+    <dt>
+      Specification issue tracker
+    </dt>
+    <dd>
+     <a
+       href="https://github.com/webaudio/web-audio-api/issues/">https://github.com/webaudio/web-audio-api/issues/</a>
+    </dd>
+    <dt>Contribute to tests (running on all implementations)</dt>
+    <dd>
+      <a href="https://github.com/w3c/web-platform-tests/">
+        https://github.com/w3c/web-platform-tests/
+      </a>
+    </dd>
+    <dt>email</dt>
+    <dd><a
+      href="mailto:padenot@mozilla.com"><code>padenot@mozilla.com</code></a></dd>
+    <dt>twitter</dt>
+    <dd><a href="https://twitter.com/padenot">@padenot</a></dd>
+  </dl>
 
 </textarea>
 <script src="remark-latest.min.js">
